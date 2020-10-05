@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace LaserDist
+namespace LiDAR
 {
     /// <summary>
     /// The class to interface with kRPC
@@ -30,9 +30,9 @@ namespace LaserDist
         {
             IList<double> cloudData = new List<double>();
 
-            var lidarModules = part.Modules.OfType<LaserDistModule>();
+            var lidarModules = part.Modules.OfType<LiDARModule>();
 
-            foreach (LaserDistModule lidar in lidarModules)
+            foreach (LiDARModule lidar in lidarModules)
             {
                 foreach (var point in lidar.cloudData)
                 {

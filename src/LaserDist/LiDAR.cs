@@ -19,13 +19,13 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace LaserDist
+namespace LiDAR
 {
     /// <summary>
-    /// The class associated with the plugin to run the LaserDist
+    /// The class associated with the plugin to run the LiDAR
     /// part(s).
     /// </summary>
-    public class LaserDistModule : PartModule
+    public class LiDARModule : PartModule
     {
 
         private bool debugLineDraw = false;
@@ -236,7 +236,7 @@ namespace LaserDist
 
             BaseField field;
 
-            DebugMsg("LaserDist is trying to config GUI panel fields from settings:");
+            DebugMsg("LiDAR is trying to config GUI panel fields from settings:");
             DebugMsg(String.Format("Part name = {0}, MaxBendX = {1}, MaxBendY = {2}", part.name, MaxBendX, MaxBendY));
 
             field = Fields["BendX"];
@@ -293,7 +293,7 @@ namespace LaserDist
         /// <param name="state"></param>
         public override void OnAwake()
         {
-            moduleName = "LaserDistModule";
+            moduleName = "LiDARModule";
             relLaserOrigin = new Vector3d(0.0, 0.0, 0.0);
 
             SetGuiFieldsFromSettings();
@@ -410,7 +410,7 @@ namespace LaserDist
         {
             for (int i = 0; i < beams.Length; ++i)
             {
-                string name = "LaserDist beam" + i;
+                string name = "LiDAR beam" + i;
                 lineObj[i] = new GameObject(name);
                 isOnMap = MapView.MapIsEnabled;
                 ChooseLayerBasedOnScene(i);
@@ -716,7 +716,7 @@ namespace LaserDist
                 // whenever the target changes to a new one:
                 if (debugLineDraw)
                 {
-                    debuglineObj = new GameObject("LaserDist debug beam");
+                    debuglineObj = new GameObject("LiDAR debug beam");
                     debuglineObj.layer = laserFlightDrawLayer;
                     debugline = debuglineObj.AddComponent<LineRenderer>();
 
