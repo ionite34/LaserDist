@@ -27,7 +27,7 @@ namespace LaserDist
     /// </summary>
     public class LaserDistModule : PartModule
     {
-        private bool debugMsg = false;
+
         private bool debugLineDraw = false;
 
         /// <summary>
@@ -40,7 +40,7 @@ namespace LaserDist
         /// than FixedUpdates, the "extra" Update()s won't do the work.)
         /// </summary>
         private bool fixedUpdateHappened = false;
-        
+
         /// <summary>
         ///   Laser's origin relative to the part's coord transform:
         /// </summary>
@@ -57,6 +57,7 @@ namespace LaserDist
         ///   Laser's pointing unit vector in Unity World coords after x/y deflection has been applied.
         /// </summary>
         private Vector3d pointing;
+        private Vector3d[] beamsPointing = new Vector3d[8];
 
         /// <summary>
         ///   Laser's origin in the map view's coords:
@@ -66,12 +67,7 @@ namespace LaserDist
         ///   The value of `pointing`, after it has been transformed into map coords.
         /// </summary>
         private Vector3d mapPointing;
-        
-        /// <summary>
-        /// The utility that solves raycasts for this laser.
-        /// </summary>
-        private LaserPQSUtil pqsTool;
-        
+
         /// <summary>
         /// Remember the object that had been hit by bestUnityRayCastDist
         /// </summary>
@@ -85,7 +81,7 @@ namespace LaserDist
         /// hit the object and sometimes passes through it.
         /// </summary>
         private int updateForcedResultAge = 0;
-        
+
         /// <summary>
         /// Has there been at least one FixedUpdate() within the most recent Update() in which a "real" hit
         /// has been registered?  
@@ -98,7 +94,7 @@ namespace LaserDist
         /// buggy in KSP and will intermittently fail to find hits that are clearly right there:
         /// </summary>
         private static int consecutiveForcedResultsAllowed = 2;
-        
+
         private bool doStressTest = false; // There's a debug test I left in the code that this enables.
 
         private bool isDrawing = false;
@@ -107,10 +103,10 @@ namespace LaserDist
         private bool hasPower = false;
         private double prevTime = 0.0;
         private double deltaTime = 0.0;
-        
+
         // These are settings that affect the color animation of the laser beam:
-        
-        private Color laserColor = new Color(1.0f,0.0f,0.0f);
+
+        private Color laserColor = new Color(1.0f, 0.0f, 0.0f);
         private float laserOpacityAverage = 0.45f;
         private float laserOpacityVariance = 0.20f;
         private float laserOpacityFadeMin = 0.1f; // min opacity when at max distance.
@@ -118,15 +114,15 @@ namespace LaserDist
 
         // This varies the "wowowow" laser thickness animation:
         private delegate float ThicknessTimeFunction(long millisec, int rand100);
-        private ThicknessTimeFunction laserWidthTimeFunction = delegate(long ms, int rand100)
-            {
-                return 0.3f + 0.2f * (Mathf.Sin(ms/200) + (rand100/100f) - 0.5f);
-            };
+        private ThicknessTimeFunction laserWidthTimeFunction = delegate (long ms, int rand100)
+        {
+            return 0.3f + 0.2f * (Mathf.Sin(ms / 200) + (rand100 / 100f) - 0.5f);
+        };
         private System.Diagnostics.Stopwatch thicknessWatch;
 
 
-        private GameObject lineObj = null;
-        private LineRenderer line = null;
+        private GameObject[] lineObj = new GameObject[8];
+        private LineRenderer[] line = new LineRenderer[8];
         private GameObject debuglineObj = null;
         private LineRenderer debugline = null;
         private Int32 mask;
@@ -134,51 +130,65 @@ namespace LaserDist
         private Int32 laserMapDrawLayer;
         private Int32 laserEditorDrawLayer;
 
+        // Sensor origin (3), beam direction (3), distance to impact (1), number of beams (8) 
+        private static int frameLength = 3 + (3 + 1) * 8;
 
-        /// <summary>Distance the laser is showing to the first collision:</summary>
-        [KSPField(isPersistant=true, guiName = "Distance", guiActive = true, guiActiveEditor = true, guiUnits = "m", guiFormat = "N2")]
-        public float Distance = 0.0f;
+        RaycastHit[] beams = new RaycastHit[8];
 
-        /// <summary>Name of thing the laser is hitting:</summary>
-        [KSPField(isPersistant=true, guiName = "Hit", guiActive = true, guiActiveEditor = true)]
-        public string HitName = "<none>";
+        /// Max number of values stored before cloud data is reset
+        int MaxPoints = frameLength * 20;
 
-        [KSPField(isPersistant=true, guiName = "Layer", guiActive = true, guiActiveEditor = true)]
-        public string HitLayer = "<none>"; // for debug reasons
+        /// Tracks the number of ticks since last beam ray cast
+        int CurrentTick = 0;
+
+        /// <summary>
+        ///  Number of game ticks to skip between beam ray casts
+        /// </summary>
+        [KSPField(isPersistant = true, guiName = "Tick Skip", guiActive = true, guiActiveEditor = true, guiUnits = "", guiFormat = "N2")]
+        [UI_FloatRange(minValue = 0, maxValue = 40, stepIncrement = 1.0f)]
+        public float TickSpacing = 10;
+
+        /// <summary>PointCloud</summary>summary>
+        public IList<double> cloudData = new List<double>();
 
         /// <summary>Distance the laser is checking to the first collision:</summary>
-        [KSPField(isPersistant=true, guiName = "Max Sensor Range", guiActive = true, guiActiveEditor = true, guiUnits = "m")]
-        public float MaxDistance = 10000f;        
+        [KSPField(isPersistant = true, guiName = "Max Sensor Range", guiActive = true, guiActiveEditor = true, guiUnits = "m")]
+        public float MaxDistance = 10000f;
 
         /// <summary>Distance the laser is checking to the first collision:</summary>
-        [KSPField(isPersistant=true, guiName = "Max Bend X", guiActive = true, guiActiveEditor = true, guiUnits = "deg")]
-        public float MaxBendX = 0f;        
+        [KSPField(isPersistant = true, guiName = "Max Bend X", guiActive = true, guiActiveEditor = true, guiUnits = "deg")]
+        public float MaxBendX = 0f;
 
         /// <summary>Distance the laser is checking to the first collision:</summary>
-        [KSPField(isPersistant=true, guiName = "Max Bend Y", guiActive = true, guiActiveEditor = true, guiUnits = "deg")]
-        public float MaxBendY = 0f;        
+        [KSPField(isPersistant = true, guiName = "Max Bend Y", guiActive = true, guiActiveEditor = true, guiUnits = "deg")]
+        public float MaxBendY = 0f;
 
         /// <summary>Flag controlling whether or not to see the laserbeam onscreen</summary>
-        [KSPField(isPersistant=true, guiName = "Visible", guiActive = true, guiActiveEditor = true),
-         UI_Toggle(disabledText="no", enabledText="yes")]
+        [KSPField(isPersistant = true, guiName = "Visible", guiActive = true, guiActiveEditor = true),
+         UI_Toggle(disabledText = "no", enabledText = "yes")]
         public bool DrawLaser = false;
 
         /// <summary>Flag controlling whether or not the device is taking readings</summary>
-        [KSPField(isPersistant=true, guiName = "Enabled", guiActive = true, guiActiveEditor = true),
-         UI_Toggle(disabledText="no", enabledText="yes")]
+        [KSPField(isPersistant = true, guiName = "Enabled", guiActive = true, guiActiveEditor = true),
+         UI_Toggle(disabledText = "no", enabledText = "yes")]
         public bool Activated = false;
 
+        /// <summary>Flag controlling whether or not the device is taking readings</summary>
+        [KSPField(isPersistant = true, guiName = "Electricity", guiActive = true, guiActiveEditor = true),
+         UI_Toggle(disabledText = "no", enabledText = "yes")]
+        public bool Electric = false;
+
         /// <summary>electric usage per second that it's on:</summary>
-        [KSPField(isPersistant=true, guiName = "Electricity Drain", guiActive = true, guiActiveEditor = true, guiUnits = "/sec", guiFormat = "N2")]
+        [KSPField(isPersistant = true, guiName = "Electricity Drain", guiActive = true, guiActiveEditor = true, guiUnits = "/sec", guiFormat = "N2")]
         public float ElectricPerSecond = 0.0f;
-        
+
         /// <summary>How far to bend the laser beam relative to the part's "right" yaw. Negative values bend left.</summary>
-        [KSPField(isPersistant=true, guiName = "Bend X", guiActive = false, guiActiveEditor = false, guiUnits = "deg", guiFormat = "N2")]
-        [UI_FloatRange(minValue = -15, maxValue = 15, stepIncrement = 0.001f)]
+        [KSPField(isPersistant = true, guiName = "Bend X", guiActive = false, guiActiveEditor = false, guiUnits = "deg", guiFormat = "N2")]
+        [UI_FloatRange(minValue = 0, maxValue = 45, stepIncrement = 0.001f)]
         public float BendX = 0.0f;
 
         /// <summary>How far to bend the laser beam relative to the part's "up" pitch. Negative values bend down.</summary>
-        [KSPField(isPersistant=true, guiName = "Bend Y", guiActive = false, guiActiveEditor = false, guiUnits = "deg", guiFormat = "N2")]
+        [KSPField(isPersistant = true, guiName = "Bend Y", guiActive = false, guiActiveEditor = false, guiUnits = "deg", guiFormat = "N2")]
         [UI_FloatRange(minValue = -15, maxValue = 15, stepIncrement = 0.001f)]
         public float BendY = 0.0f;
 
@@ -187,20 +197,21 @@ namespace LaserDist
         /// then the mod will bog down KSP's animation rate.  If the value is too small, then the mod will take a longer
         /// time to retun an answer and it might take more than one Unity Update to get the answer.
         /// </summary>
-        [KSPField(isPersistant=true, guiName = "CPU hog", guiActive = true, guiActiveEditor = true, guiUnits = "%"),
-         UI_FloatRange(minValue=1f, maxValue=20f, stepIncrement=1f)]
+        [KSPField(isPersistant = true, guiName = "CPU hog", guiActive = true, guiActiveEditor = true, guiUnits = "%"),
+         UI_FloatRange(minValue = 1f, maxValue = 20f, stepIncrement = 1f)]
         public float CPUGreedyPercent;
-        
-        /// <summary>How long ago was the value you see calculated, in integer number of updates?</summary>
-        /// TODO: If support for it ends up in kOS, then explicitly make this KSPField open to kOS without being seen on the menu.
-        [KSPField(isPersistant=true, guiName = "Update Age", guiActive = true, guiActiveEditor = true, guiUnits = " update(s)")]
-        public int UpdateAge = 0;
-        
+
         [KSPEvent(guiName = "Zero Bend", guiActive = false, guiActiveEditor = false)]
         public void ZeroBend()
-        {   BendX = 0f;
+        {
+            BendX = 0f;
             BendY = 0f;
         }
+
+        /// <summary>Flag controlling whether or not debug messages are enabled</summary>
+        [KSPField(isPersistant = true, guiName = "Debug", guiActive = true, guiActiveEditor = true),
+         UI_Toggle(disabledText = "no", enabledText = "yes")]
+        public bool debugMsg = true;
 
         /// <summary>
         /// Configures context menu settings that vary depending on part.cfg settings per part,
@@ -227,54 +238,55 @@ namespace LaserDist
 
             DebugMsg("LaserDist is trying to config GUI panel fields from settings:");
             DebugMsg(String.Format("Part name = {0}, MaxBendX = {1}, MaxBendY = {2}", part.name, MaxBendX, MaxBendY));
-            
+
             field = Fields["BendX"];
             ((UI_FloatRange)field.uiControlEditor).minValue = -MaxBendX;
             ((UI_FloatRange)field.uiControlEditor).maxValue = MaxBendX;
-            ((UI_FloatRange)field.uiControlFlight).minValue = -MaxBendX;
-            ((UI_FloatRange)field.uiControlFlight).maxValue = MaxBendX;
-            if ( MaxBendX == 0f )
-            {   field.guiActive = false;
+            if (MaxBendX == 0f)
+            {
+                field.guiActive = false;
                 field.guiActiveEditor = false;
             }
             else
-            {   field.guiActive = true;
+            {
+                field.guiActive = true;
                 field.guiActiveEditor = true;
             }
-            
+
             field = Fields["BendY"];
             ((UI_FloatRange)field.uiControlEditor).minValue = -MaxBendY;
             ((UI_FloatRange)field.uiControlEditor).maxValue = MaxBendY;
-            ((UI_FloatRange)field.uiControlFlight).minValue = -MaxBendY;
-            ((UI_FloatRange)field.uiControlFlight).maxValue = MaxBendY;
-            if ( MaxBendY == 0f )
-            {   field.guiActive = false;
+            if (MaxBendY == 0f)
+            {
+                field.guiActive = false;
                 field.guiActiveEditor = false;
             }
             else
-            {   field.guiActive = true;
+            {
+                field.guiActive = true;
                 field.guiActiveEditor = true;
             }
-            
+
             BaseEvent evt = Events["ZeroBend"];
-            if( MaxBendX == 0f && MaxBendY == 0f )
+            if (MaxBendX == 0f && MaxBendY == 0f)
             {
                 evt.guiActive = false;
                 evt.guiActiveEditor = false;
             }
             else
-            {   evt.guiActive = true;
+            {
+                evt.guiActive = true;
                 evt.guiActiveEditor = true;
             }
         }
-        
+
         public override void OnStart(StartState state)
         {
             // Have to keep re-doing this from several hooks because
             // KSP keeps annoyingly forgetting my float range changes.
             SetGuiFieldsFromSettings();
         }
-        
+
         /// <summary>
         /// Unity calls this hook during the activation of the partmodule on a part.
         /// </summary>
@@ -282,10 +294,8 @@ namespace LaserDist
         public override void OnAwake()
         {
             moduleName = "LaserDistModule";
-            relLaserOrigin = new Vector3d(0.0,0.0,0.0);
-            pqsTool = new LaserPQSUtil(part);
-            pqsTool.tickPortionAllowed = (double) (CPUGreedyPercent / 100.0);
-        
+            relLaserOrigin = new Vector3d(0.0, 0.0, 0.0);
+
             SetGuiFieldsFromSettings();
 
             bool debugShowAllMaskNames = false; // turn on to print the following after a KSP update:
@@ -310,37 +320,37 @@ namespace LaserDist
             // aren't mentioned elsewhere.
             mask = LayerMask.GetMask(
                 "Default",    // layer number  0, which contains most physical objects that are not "scenery"
-                // "TransparentFX",    // layer number  1
-                // "Ignore Raycast",    // layer number  2
-                // "",    // layer number  3 (no name - don't know what it is)
+                              // "TransparentFX",    // layer number  1
+                              // "Ignore Raycast",    // layer number  2
+                              // "",    // layer number  3 (no name - don't know what it is)
                 "Water",    // layer number  4
-                // "UI",    // layer number  5
-                // "",    // layer number  6 (no name - don't know what it is)
-                // "",    // layer number  7 (no name - don't know what it is)
-                // "PartsList_Icons",    // layer number  8
-                // "Atmosphere",    // layer number  9
-                // "Scaled Scenery",    // layer number  10 (this is the map view planets, I think)
-                // "UIDialog",    // layer number  11
-                // "UIVectors",    // layer number  12 (i.e. lines for orbits and comm connections maybe?)
-                // "UI_Mask",    // layer number  13
-                // "Screens",    // layer number  14
+                            // "UI",    // layer number  5
+                            // "",    // layer number  6 (no name - don't know what it is)
+                            // "",    // layer number  7 (no name - don't know what it is)
+                            // "PartsList_Icons",    // layer number  8
+                            // "Atmosphere",    // layer number  9
+                            // "Scaled Scenery",    // layer number  10 (this is the map view planets, I think)
+                            // "UIDialog",    // layer number  11
+                            // "UIVectors",    // layer number  12 (i.e. lines for orbits and comm connections maybe?)
+                            // "UI_Mask",    // layer number  13
+                            // "Screens",    // layer number  14
                 "Local Scenery",    // layer number  15
-                // "kerbals",    // layer number  16 (presumably the hovering faces in the UI, not the 3-D in-game kerbals)
+                                    // "kerbals",    // layer number  16 (presumably the hovering faces in the UI, not the 3-D in-game kerbals)
                 "EVA",    // layer number  17
-                // "SkySphere",    // layer number  18
+                          // "SkySphere",    // layer number  18
                 "PhysicalObjects",    // layer number  19 (don't know - maybe rocks?)
-                // "Internal Space",    // layer number  20 (objects inside the cockpit in IVA view)
-                // "Part Triggers",    // layer number  21 (don't know what this is)
-                // "KerbalInstructors",    // layer number  22 (presumably the people's faces on screen?
-                // "AeroFXIgnore",    // layer number  23 (well, it says "ignore" so I will)
-                // "MapFX",    // layer number  24
-                // "UIAdditional".    // layer number  25
-                // "WheelCollidersIgnore",    // layer number  26
+                                      // "Internal Space",    // layer number  20 (objects inside the cockpit in IVA view)
+                                      // "Part Triggers",    // layer number  21 (don't know what this is)
+                                      // "KerbalInstructors",    // layer number  22 (presumably the people's faces on screen?
+                                      // "AeroFXIgnore",    // layer number  23 (well, it says "ignore" so I will)
+                                      // "MapFX",    // layer number  24
+                                      // "UIAdditional".    // layer number  25
+                                      // "WheelCollidersIgnore",    // layer number  26
                 "WheelColliders",    // layer number  27
                 "TerrainColliders"    // layer number  28
-                // "DragRender"    // layer number  29
-                // "SurfaceFX"    // layer number  30
-                // "Vectors"    // layer number  31 (UI overlay for things like lift and drag display, maybe?).
+                                      // "DragRender"    // layer number  29
+                                      // "SurfaceFX"    // layer number  30
+                                      // "Vectors"    // layer number  31 (UI overlay for things like lift and drag display, maybe?).
             );
             laserFlightDrawLayer = LayerMask.NameToLayer("TransparentFX");
             laserMapDrawLayer = LayerMask.NameToLayer("Scaled Scenery");
@@ -349,18 +359,16 @@ namespace LaserDist
 
         public override void OnActive()
         {
-            GameEvents.onPartDestroyed.Add( OnLaserDestroy );
-            GameEvents.onEditorShipModified.Add( OnLaserAttachDetach );
+            GameEvents.onPartDestroyed.Add(OnLaserDestroy);
+            GameEvents.onEditorShipModified.Add(OnLaserAttachDetach);
         }
-        
+
         // Actions to control the active flag:
         // ----------------------------------------
         [KSPAction("toggle")]
         public void ActionToggle(KSPActionParam p)
         {
-            Activated = ! Activated;
-            if( pqsTool != null )
-                pqsTool.Reset();
+            Activated = !Activated;
         }
 
         // Actions to control the visibility flag:
@@ -368,17 +376,20 @@ namespace LaserDist
         [KSPAction("toggle visibility")]
         public void ActionToggleVisibility(KSPActionParam p)
         {
-            DrawLaser = ! DrawLaser;
+            DrawLaser = !DrawLaser;
+        }
+
+        public void ClearCloudData()
+        {
+            cloudData.Clear();
         }
 
         private void ChangeIsDrawing()
         {
             bool newVal = (hasPower && Activated && DrawLaser);
-            if( newVal != isDrawing )
+            if (newVal != isDrawing)
             {
-                if( pqsTool != null )
-                    pqsTool.Reset();
-                if( newVal )
+                if (newVal)
                 {
                     startDrawing();
                 }
@@ -387,49 +398,53 @@ namespace LaserDist
                     stopDrawing();
                 }
             }
-            
+
             isDrawing = newVal;
         }
-        
+
         /// <summary>
         ///   Begin the Unity drawing of this laser,
         ///   making the unity objects for it.
         /// </summary>
         private void startDrawing()
         {
-            lineObj = new GameObject("LaserDist beam");
-            isOnMap = MapView.MapIsEnabled;
-            ChooseLayerBasedOnScene();
+            for (int i = 0; i < beams.Length; ++i)
+            {
+                string name = "LaserDist beam" + i;
+                lineObj[i] = new GameObject(name);
+                isOnMap = MapView.MapIsEnabled;
+                ChooseLayerBasedOnScene(i);
 
-            line = lineObj.AddComponent<LineRenderer>();
-            
-            line.material = new Material(Shader.Find("Particles/Additive") );
-            Color c1 = laserColor;
-            Color c2 = laserColor;
-            line.SetColors( c1, c2 );
-            line.enabled = true;
+                line[i] = lineObj[i].AddComponent<LineRenderer>();
 
-            laserAnimationRandomizer = new System.Random();
-            bestLateUpdateHit.distance = -1f;
+                line[i].material = new Material(Shader.Find("Particles/Additive"));
+                Color c1 = laserColor;
+                Color c2 = laserColor;
+                line[i].SetColors(c1, c2);
+                line[i].enabled = true;
 
-            if (thicknessWatch != null)
-                thicknessWatch.Stop();
-            thicknessWatch = new System.Diagnostics.Stopwatch();
-            thicknessWatch.Start();
+                laserAnimationRandomizer = new System.Random();
+                bestLateUpdateHit.distance = -1f;
+
+                if (thicknessWatch != null)
+                    thicknessWatch.Stop();
+                thicknessWatch = new System.Diagnostics.Stopwatch();
+                thicknessWatch.Start();
+            }
         }
 
-        private void ChooseLayerBasedOnScene()
+        private void ChooseLayerBasedOnScene(int i)
         {
             isOnMap = MapView.MapIsEnabled;
             isInEditor = HighLogic.LoadedSceneIsEditor;
             Int32 newMask; // holding in a local var temporarily for debug-ability, because Unity overrides the value
                            // if it doesn't like it when you set LineObj.layer directly, making it hard to debug
                            // what's really going on becuase there's no variable value to look at which hasn't been altered.
-            if( isInEditor )
+            if (isInEditor)
             {
                 newMask = laserEditorDrawLayer;
             }
-            else if( isOnMap )
+            else if (isOnMap)
             {
                 // Drawing the laser on the map was
                 // only enabled for the purpose of debugging.
@@ -438,26 +453,29 @@ namespace LaserDist
             }
             else
             {
-                newMask =  laserFlightDrawLayer;
+                newMask = laserFlightDrawLayer;
             }
-            lineObj.layer = newMask;
+            lineObj[i].layer = newMask;
         }
-        
+
         /// <summary>
         ///   Stop the Unity drawing of this laser:
         ///   destroying the unity objects for it.
         /// </summary>
         private void stopDrawing()
         {
-            if( line != null )
+            for (int i = 0; i < line.Length; ++i)
             {
-                line.enabled = false;
-                line = null;
+                if (line[i] != null)
+                {
+                    line[i].enabled = false;
+                    line[i] = null;
+                }
+                if (lineObj[i] != null)
+                {
+                    lineObj[i] = null;
+                }
             }
-            if( lineObj != null )
-            {
-                lineObj = null;
-            } 
         }
 
         /// <summary>
@@ -470,53 +488,50 @@ namespace LaserDist
             // in the game, not just when the part being destroyed is this one,
             // so don't do anything if it's the wrong part.
             //
-            if( p != this.part ) return;
-            
+            if (p != this.part) return;
+
             Activated = false;
             DrawLaser = false;
-            if( pqsTool != null )
-                pqsTool.Reset();
             ChangeIsDrawing();
         }
-        
+
         public void OnDestroy()
         {
             OnLaserDestroy(this.part); // another way to catch it when a part is detached.
-            GameEvents.onPartDestroyed.Remove( OnLaserDestroy );
-            GameEvents.onEditorShipModified.Remove( OnLaserAttachDetach );
+            GameEvents.onPartDestroyed.Remove(OnLaserDestroy);
+            GameEvents.onEditorShipModified.Remove(OnLaserAttachDetach);
         }
-        
+
         public void OnLaserAttachDetach(ShipConstruct sc)
         {
             // If this laser part isn't on the ship anymore, turn off the drawing.
-            if( ! sc.Parts.Contains(this.part))
+            if (!sc.Parts.Contains(this.part))
                 stopDrawing();
         }
-                
-        
+
+
         public void FixedUpdate()
         {
             fixedUpdateHappened = true;
         }
-        
+
         /// <summary>
         /// Recalculate the pointing vector and origin point based on part current position and bending deflections.
         /// </summary>
-        private void UpdatePointing()
+        private void UpdatePointing(int i)
         {
-            origin = this.part.transform.TransformPoint( relLaserOrigin );
-            rawPointing = this.part.transform.rotation * Vector3d.up;
-            
-            if( MaxBendX > 0f || MaxBendY > 0f )
+            float ang = -BendX + i * (2 * BendX / (beams.Length - 1));
+            if (MaxBendX > 0f || MaxBendY > 0f)
             {   // Doubles would be better than Floats here, but these come from user
                 // interface rightclick menu fields that KSP demands be floats:
                 Quaternion BendRotation =
-                    Quaternion.AngleAxis(BendX, this.part.transform.forward) *
+                    Quaternion.AngleAxis(ang, this.part.transform.forward) *
                     Quaternion.AngleAxis(BendY, this.part.transform.right);
-                pointing = BendRotation * rawPointing;
+                beamsPointing[i] = BendRotation * rawPointing;
             }
             else
-            {   pointing = rawPointing;
+            {
+                beamsPointing[i] = rawPointing;
             }
         }
 
@@ -526,42 +541,25 @@ namespace LaserDist
         /// </summary>
         public void Update()
         {
-            if( ! fixedUpdateHappened )
+            if (!fixedUpdateHappened)
             {
-                DebugMsg("Update: a FixedUpdate hasn't happened yet, so skipping.");
+                //DebugMsg("Update: a FixedUpdate hasn't happened yet, so skipping.");
                 return;
             }
-            DebugMsg("Update: A new FixedUpdate happened, so doing the full work this time.");
+            //DebugMsg("Update: A new FixedUpdate happened, so doing the full work this time.");
             fixedUpdateHappened = false;
-            
+
             double nowTime = Planetarium.GetUniversalTime();
-            
-            pqsTool.tickPortionAllowed = (double) (CPUGreedyPercent / 100.0); // just in case user changed it in the slider.
 
             deltaTime = nowTime - prevTime;
-            if( prevTime > 0 ) // Skips the power drain if it's the very first Update() after the scene load.
+            if (prevTime > 0) // Skips the power drain if it's the very first Update() after the scene load.
                 drainPower();
             prevTime = nowTime;
 
             PhysicsRaycaster();
-            castUpdate();
             ChangeIsDrawing();
             drawUpdate();
-            
-            if( doStressTest )
-            {
-                // This code was how I judged how many iterations I should allow the PQS
-                // algorithm to take per update - it measures how sluggish animation
-                // gets if I use the PQS altitude solver a lot per update.  It should never
-                // be enabled again unless you're trying to repeat that sort of test.  It
-                // bogs down KSP.
-                int numQueries = 1000;
-                System.Diagnostics.Stopwatch timer = new System.Diagnostics.Stopwatch();
-                timer.Start();
-                pqsTool.StressTestPQS( part.vessel.GetOrbit().referenceBody, numQueries );
-                timer.Stop();
-                DebugMsg( "StressTestPQS: for " + numQueries + ", " + timer.Elapsed.TotalMilliseconds + "millis" );
-            }
+
         }
 
         /// <summary>
@@ -569,17 +567,17 @@ namespace LaserDist
         /// </summary>
         private void drainPower()
         {
-            if( isInEditor )
+            if (isInEditor)
             {
                 hasPower = true;
             }
             else
             {
-                if( Activated )
+                if (Activated && Electric)
                 {
-                    float drainThisUpdate = (float) (ElectricPerSecond * deltaTime);
-                    float actuallyUsed = part.RequestResource( "ElectricCharge", drainThisUpdate );
-                    if( actuallyUsed < drainThisUpdate/2.0 )
+                    float drainThisUpdate = (float)(ElectricPerSecond * deltaTime);
+                    float actuallyUsed = part.RequestResource("ElectricCharge", drainThisUpdate);
+                    if (actuallyUsed < drainThisUpdate / 2.0)
                     {
                         hasPower = false;
                     }
@@ -591,233 +589,153 @@ namespace LaserDist
             }
         }
 
+        /// <summary>
+        /// Calculate rotation quaternion inverse for worldspace:
+        /// </summary>
+
+        private QuaternionD rotInv(CelestialBody body)
+        {
+            var up = body.bodyTransform.up;
+            var forward = body.bodyTransform.forward;
+            if (Math.Abs(Vector3d.Dot(up.normalized, forward.normalized)) > 0.1)
+                throw new InvalidOperationException("Forward and up directions are not close to perpendicular, got " + up + " and " + forward);
+
+            {
+                forward.Normalize();
+                up.Normalize(); // Additional normalization, avoids large tangent norm
+                //var proj = forward * Vector3d.Dot(up, forward);
+                var dot = Vector3d.Dot(up, forward);
+                Vector3d proj = new Vector3d(dot * forward.x, dot * forward.y, dot * forward.z);
+                up = up - proj;
+                up.Normalize();
+            }
+
+            Vector3d right = Vector3d.Cross(up, forward);
+            var w = Math.Sqrt(1.0d + right.x + up.y + forward.z) * 0.5d;
+            var r = 0.25d / w;
+            var x = (up.z - forward.y) * r;
+            var y = (forward.x - right.z) * r;
+            var z = (right.y - up.x) * r;
+
+            return new QuaternionD(-x, -y, -z, w);
+        }
 
         /// <summary>
         /// Perform Unity's Physics.RayCast() check:
         /// </summary>
         public void PhysicsRaycaster()
         {
-            UpdatePointing();
-            bool switchToNewHit = false;
-            RaycastHit thisLateUpdateBestHit = new RaycastHit();
-            
-            if( hasPower && Activated && origin != null && pointing != null)
+            CurrentTick++;
+
+            if (CurrentTick >= (int)(TickSpacing))
+                CurrentTick = 0;
+
+            origin = this.part.transform.TransformPoint(relLaserOrigin);
+            rawPointing = this.part.transform.rotation * Vector3d.up;
+
+            mapOrigin = ScaledSpace.LocalToScaledSpace(origin);
+            mapPointing = pointing;
+
+            /// Get transform
+            /// ***********************************
+            var currentBody = this.part.vessel.mainBody;
+
+            var pos = currentBody.position;
+
+            var rot = rotInv(currentBody);
+
+
+
+            /// ***********************************
+
+
+            /// Add sensor origin
+            if (CurrentTick == 0 && cloudData.Count == 0)
             {
-                RaycastHit[] hits = null;
-                hits = Physics.RaycastAll( origin, pointing, MaxDistance, mask );
-                DebugMsg( "  num hits = " + hits.Length );
-                if( hits.Length > 0 )
+                var worldOrigin = rot * (origin - pos);
+                cloudData.Add(worldOrigin.x);
+                cloudData.Add(worldOrigin.y);
+                cloudData.Add(worldOrigin.z);
+                //DebugMsg(String.Format("Origin = {0} {1} {2}", origin.x, origin.y, origin.z));
+                ///DebugMsg(String.Format("MapOrigin = {0} {1} {2}", mapOrigin.x, mapOrigin.y, mapOrigin.z));
+            }
+
+            for (int i = 0; i < beams.Length; ++i)
+            {
+                UpdatePointing(i);
+
+                RaycastHit thisLateUpdateBestHit = new RaycastHit();
+
+                if (hasPower && Activated && origin != null && beamsPointing[i] != null && CurrentTick == 0)
                 {
-                    // Get the best existing hit on THIS lateUpdate:
-                    thisLateUpdateBestHit.distance = Mathf.Infinity;
-                    foreach( RaycastHit hit in hits )
+                    RaycastHit[] hits = null;
+                    hits = Physics.RaycastAll(origin, beamsPointing[i], MaxDistance, mask);
+
+                    if (hits.Length > 0)
                     {
-                        if( hit.distance < thisLateUpdateBestHit.distance )
-                            thisLateUpdateBestHit = hit;
-                    }
-                    DebugMsg( "    thisLateUpateBestHit = " + thisLateUpdateBestHit.distance );
-                    // If it's the same object as the previous best hit, or there is no previous best hit, then use it:
-                    if( bestLateUpdateHit.distance < 0  ||
-                        bestLateUpdateHit.collider == null ||
-                        bestLateUpdateHit.collider.gameObject == null ||
-                        object.ReferenceEquals( thisLateUpdateBestHit.collider.gameObject,
-                                                bestLateUpdateHit.collider.gameObject ) )
-                    {
-                        DebugMsg( "      Resetting hit to new value because it's the same as prev best, or there was no prev best." );
-                        bestLateUpdateHit = thisLateUpdateBestHit;
-                        resetHitThisUpdate = true;
+                        // Get the best existing hit on THIS lateUpdate:
+                        thisLateUpdateBestHit.distance = Mathf.Infinity;
+                        foreach (RaycastHit hit in hits)
+                        {
+                            if (hit.distance < thisLateUpdateBestHit.distance)
+                                thisLateUpdateBestHit = hit;
+                        }
+
                     }
                     else
                     {
-                        switchToNewHit = false;
-                        // If it's a different object that was hit, and it was closer, then take it as the hit:
-                        if( thisLateUpdateBestHit.distance < bestLateUpdateHit.distance )
-                            switchToNewHit = true;
-                        // If it's a different object that was hit, and it's farther, but there's been too many
-                        // instances of lateupdates with forced bogus hitting old hits, then take it as the hit:
-                        else if( updateForcedResultAge >= consecutiveForcedResultsAllowed )
-                            switchToNewHit = true;
-
-                        if( switchToNewHit )
+                        //DebugMsg("  Raycast no hits.");
+                        //if (updateForcedResultAge >= consecutiveForcedResultsAllowed)
                         {
-                            DebugMsg( "      Resetting hit to new value even though it's a different hit." );
-                            bestLateUpdateHit = thisLateUpdateBestHit;
-                            resetHitThisUpdate = true;
+                            thisLateUpdateBestHit = new RaycastHit(); // force it to count as a real miss.
+                            thisLateUpdateBestHit.distance = -1f;
                         }
-                        else
-                            DebugMsg( "      Keeping old best value because it's a different longer hit." );
                     }
-                }
-                else
-                {
-                    DebugMsg( "  Raycast no hits." );
-                    if( updateForcedResultAge >= consecutiveForcedResultsAllowed )
+
+                    beams[i] = thisLateUpdateBestHit;
+
+                    if (thisLateUpdateBestHit.distance > 0)
                     {
-                        DebugMsg( "    update is old enough to allow reset to nothing." );
-                        bestLateUpdateHit = new RaycastHit(); // force it to count as a real miss.
-                        bestLateUpdateHit.distance = -1f;
-                        resetHitThisUpdate = true;
+                        var worldPoint = rot * (beams[i].point - pos);
+                        cloudData.Add(worldPoint.x);
+                        cloudData.Add(worldPoint.y);
+                        cloudData.Add(worldPoint.z);
                     }
+
+                    // Add direction
+                    //cloudData.Add(beamsPointing[i].x);
+                    //cloudData.Add(beamsPointing[i].y);
+                    //cloudData.Add(beamsPointing[i].z);
+
+                    // Add distance
+                    //cloudData.Add(thisLateUpdateBestHit.distance);
                 }
+
 
                 // If showing debug lines, this makes a purple line during LateUpdate
                 // whenever the target changes to a new one:
-                if( debugLineDraw )
+                if (debugLineDraw)
                 {
                     debuglineObj = new GameObject("LaserDist debug beam");
                     debuglineObj.layer = laserFlightDrawLayer;
                     debugline = debuglineObj.AddComponent<LineRenderer>();
-            
-                    debugline.material = new Material(Shader.Find("Particles/Additive") );
-                    Color c1 = new Color(1.0f,0.0f,1.0f);
+
+                    debugline.material = new Material(Shader.Find("Particles/Additive"));
+                    Color c1 = new Color(1.0f, 0.0f, 1.0f);
                     Color c2 = c1;
-                    debugline.SetColors( c1, c2 );
+                    debugline.SetColors(c1, c2);
                     debugline.enabled = true;
-                    debugline.SetWidth(0.01f,0.01f);
-                    debugline.SetPosition( 0, origin );
-                    debugline.SetPosition( 1, origin + pointing*thisLateUpdateBestHit.distance );
+                    debugline.SetWidth(0.01f, 0.01f);
+                    debugline.SetPosition(0, origin);
+                    debugline.SetPosition(1, origin + beamsPointing[i] * thisLateUpdateBestHit.distance);
                 }
             }
-        }
 
-        /// <summary>
-        ///   Recalculates the distance to a hit item, or -1f if nothing
-        ///   was hit by the laser.
-        /// </summary>
-        /// <returns></returns>
-        private void castUpdate()
-        {
-            if( resetHitThisUpdate )
-                updateForcedResultAge = 0;
-            else
-                ++updateForcedResultAge;
-            float newDist = -1f;
-            
-            // The location of origin is different in LateUpdate than it is
-            // in Update, so it has to be reset in both:
-            UpdatePointing();
-            
-            HitName = "<none>";
-            HitLayer = "<none>";
-            if( hasPower && Activated && origin != null && pointing != null )
+            if (cloudData.Count > MaxPoints)
             {
-                // the points on the map-space corresponding to these points is different:
-                mapOrigin = ScaledSpace.LocalToScaledSpace( origin );
-                mapPointing = pointing;
-
-                if( bestLateUpdateHit.distance >= 0 )
-                {
-                    DebugMsg( "  using local raycast result." );
-                    UpdateAge = updateForcedResultAge;
-                    
-                    RaycastHit hit = bestLateUpdateHit;
-                    newDist = hit.distance;
-
-                    // Walk up the UnityGameObject tree trying to find an object that is
-                    // something the user will be familiar with:
-                    GameObject hitObject = (hit.transform == null ? null : hit.transform.gameObject);
-                    if( hitObject != null )
-                    {
-                        HitLayer = LayerMask.LayerToName(hitObject.layer); // for debug reasons
-
-                        HitName = hitObject.name; // default if the checks below don't work.
-
-                        // Despite the name and what the Unity documentation says,
-                        // GetComponentInParent actually looks all the way up the
-                        // ancestor list, not just in Parents, so these following
-                        // checks are walking up the ancestors to find the one that
-                        // has a KSP component assigned to it:
-                        if( hitObject.layer == 15 )
-                        {
-                            // Support Kopernicus scatter colliders
-                            // - no more crashing into boulders
-                            // - shoot them with lasers! (and then drive around them)
-                            PQSMod_LandClassScatterQuad scatter = hitObject.GetComponentInParent<PQSMod_LandClassScatterQuad>();
-                            if( scatter != null )
-                            {
-                                HitName = scatter.transform.parent.name; // the name of the Scatter, eg. "Scatter boulder".
-                            }
-                            else
-                            {
-                                // Fallback to the body.
-                                CelestialBody body = hitObject.GetComponentInParent<CelestialBody>();
-                                if( body != null )
-                                {
-                                    HitName = body.name;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Part part = hitObject.GetComponentInParent<Part>();
-                            if( part != null )
-                            {
-                                HitName = part.name;
-                            }
-                        }
-                        UpdateAge = 0;
-                    }
-                }
-                // If the hit is not found, or it is found but is far enough
-                // away that it might be on the other side of the planet, seen
-                // through the ocean (which has no collider so raycasts pass
-                // through it), then try the more expensive pqs ray cast solver.
-                if( newDist < 0 || newDist > 100000 )
-                {
-                    DebugMsg( "  numeric solver starting:." );
-                    double pqsDist;
-                    CelestialBody pqsBody;
-                    bool success = pqsTool.RayCast( origin, pointing, out pqsBody, out pqsDist );
-                    if( pqsTool.UpdateAge == 0 )
-                    {
-                        DebugMsg( "    UpdateAge == 0." );
-                        if( success )
-                        {
-                            DebugMsg( "      success." );
-                            // If it's a closer hit than we have already, then use it:
-                            if( pqsDist < newDist || newDist < 0 )
-                            {
-                                HitName = pqsBody.name;
-                                // Ignore any hit closer than 2km as probably bogus "vessel below PQS" hit:
-                                // (it's possible for the actual terrain polygons to approximate the PQS curve
-                                // in a way where the vessel sits "under" the PQS predicted altitude despite
-                                // being above the polygon - that generates a bogus "hit terrain" false positive
-                                // as the line goes from "under" the terrain to "above" it.  The PQS systen should
-                                // not need to be queried for nearby terrain, so if there isn't a nearby real raycast
-                                // hit, then don't believe it when PQS claims there is one:
-                                if (pqsDist >= 2000)
-                                {
-                                    newDist = (float)pqsDist;
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        DebugMsg( "    UpdateAge != 0." );
-                        if( pqsTool.PrevSuccess )
-                        {
-                            DebugMsg( "      prevsuccess." );
-                            // If it's a closer hit than we have already, then use it:
-                            if( pqsTool.PrevDist < newDist || newDist < 0 )
-                            {
-                                DebugMsg( "      prevsuccess." );
-                                HitName = pqsTool.PrevBodyName;
-                                // Ignore any hit closer than 2km as probably bogus "vessel below PQS" hit:
-                                // (see comment above in the "if" about this.)
-                                if( pqsTool.PrevDist >= 2000 )
-                                {
-                                    newDist = (float)pqsTool.PrevDist;
-                                }
-                            }
-                        }
-                    }
-                    UpdateAge = pqsTool.UpdateAge;
-                }
+                ClearCloudData();
+                //DebugMsg("Point limit");
             }
-            Distance = newDist;
-            DebugMsg( "Distance = "+Distance );
-            resetHitThisUpdate = false;
         }
 
         /// <summary>
@@ -828,11 +746,11 @@ namespace LaserDist
         {
             isOnMap = MapView.MapIsEnabled;
             isInEditor = HighLogic.LoadedSceneIsEditor;
-            if( isDrawing )
+            if (isDrawing)
             {
                 Vector3d useOrigin = origin;
                 Vector3d usePointing = pointing;
-                if( isOnMap )
+                if (isOnMap)
                 {
                     useOrigin = mapOrigin;
                     usePointing = mapPointing;
@@ -840,25 +758,28 @@ namespace LaserDist
 
                 float width = 0.02f;
 
-                line.SetVertexCount(2);
-                line.SetPosition( 0, useOrigin );
-                line.SetPosition( 1, useOrigin + usePointing*( (Distance>0)?Distance:MaxDistance ) );
+                for (int i = 0; i < line.Length; ++i)
+                {
+                    line[i].SetVertexCount(2);
+                    line[i].SetPosition(0, useOrigin);
+                    line[i].SetPosition(1, useOrigin + beamsPointing[i] * ((beams[i].distance > 0) ? beams[i].distance : MaxDistance));
 
-                // Make an animation effect where the laser's opacity varies on a sine-wave-over-time pattern:
-                Color c1 = laserColor;
-                Color c2 = laserColor;
-                c1.a = laserOpacityAverage + laserOpacityVariance * (laserAnimationRandomizer.Next(0,100) / 100f);
-                c2.a = laserOpacityFadeMin;
-                line.SetColors(c1,c2);
-                float tempWidth = width * laserWidthTimeFunction(thicknessWatch.ElapsedMilliseconds, laserAnimationRandomizer.Next(0,100));
-                line.SetWidth( tempWidth, tempWidth );
+                    // Make an animation effect where the laser's opacity varies on a sine-wave-over-time pattern:
+                    Color c1 = laserColor;
+                    Color c2 = laserColor;
+                    c1.a = laserOpacityAverage + laserOpacityVariance * (laserAnimationRandomizer.Next(0, 100) / 100f);
+                    c2.a = laserOpacityFadeMin;
+                    line[i].SetColors(c1, c2);
+                    float tempWidth = width * laserWidthTimeFunction(thicknessWatch.ElapsedMilliseconds, laserAnimationRandomizer.Next(0, 100));
+                    line[i].SetWidth(tempWidth, tempWidth);
+                }
             }
         }
-        
+
         private void DebugMsg(string message)
         {
-            if( debugMsg )
-                System.Console.WriteLine(message);
+            if (debugMsg)
+                Debug.Log(message);
         }
     }
 }
