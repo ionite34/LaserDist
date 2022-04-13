@@ -56,17 +56,12 @@ namespace LiDAR
         /// <summary>
         ///   Laser's pointing unit vector in Unity World coords after x/y deflection has been applied.
         /// </summary>
-        private Vector3d pointing;
         private Vector3d[] beamsPointing = new Vector3d[8];
 
         /// <summary>
         ///   Laser's origin in the map view's coords:
         /// </summary>
         private Vector3d mapOrigin;
-        /// <summary>
-        ///   The value of `pointing`, after it has been transformed into map coords.
-        /// </summary>
-        private Vector3d mapPointing;
 
         /// <summary>
         /// Remember the object that had been hit by bestUnityRayCastDist
@@ -420,7 +415,8 @@ namespace LiDAR
                 line[i].material = new Material(Shader.Find("Particles/Additive"));
                 Color c1 = laserColor;
                 Color c2 = laserColor;
-                line[i].SetColors(c1, c2);
+                line[i].startColor = c1;
+                line[i].endColor = c2;
                 line[i].enabled = true;
 
                 laserAnimationRandomizer = new System.Random();
@@ -575,8 +571,8 @@ namespace LiDAR
             {
                 if (Activated && Electric)
                 {
-                    float drainThisUpdate = (float)(ElectricPerSecond * deltaTime);
-                    float actuallyUsed = part.RequestResource("ElectricCharge", drainThisUpdate);
+                    double drainThisUpdate = (ElectricPerSecond * deltaTime);
+                    double actuallyUsed = part.RequestResource("ElectricCharge", drainThisUpdate);
                     if (actuallyUsed < drainThisUpdate / 2.0)
                     {
                         hasPower = false;
@@ -634,7 +630,6 @@ namespace LiDAR
             rawPointing = this.part.transform.rotation * Vector3d.up;
 
             mapOrigin = ScaledSpace.LocalToScaledSpace(origin);
-            mapPointing = pointing;
 
             /// Get transform
             /// ***********************************
@@ -723,9 +718,11 @@ namespace LiDAR
                     debugline.material = new Material(Shader.Find("Particles/Additive"));
                     Color c1 = new Color(1.0f, 0.0f, 1.0f);
                     Color c2 = c1;
-                    debugline.SetColors(c1, c2);
+                    debugline.startColor = c1;
+                    debugline.endColor = c2;
                     debugline.enabled = true;
-                    debugline.SetWidth(0.01f, 0.01f);
+                    debugline.startWidth = 0.01f;
+                    debugline.endWidth = 0.01f;
                     debugline.SetPosition(0, origin);
                     debugline.SetPosition(1, origin + beamsPointing[i] * thisLateUpdateBestHit.distance);
                 }
@@ -749,18 +746,16 @@ namespace LiDAR
             if (isDrawing)
             {
                 Vector3d useOrigin = origin;
-                Vector3d usePointing = pointing;
                 if (isOnMap)
                 {
                     useOrigin = mapOrigin;
-                    usePointing = mapPointing;
                 }
 
                 float width = 0.02f;
 
                 for (int i = 0; i < line.Length; ++i)
                 {
-                    line[i].SetVertexCount(2);
+                    line[i].positionCount = 2;
                     line[i].SetPosition(0, useOrigin);
                     line[i].SetPosition(1, useOrigin + beamsPointing[i] * ((beams[i].distance > 0) ? beams[i].distance : MaxDistance));
 
@@ -769,9 +764,11 @@ namespace LiDAR
                     Color c2 = laserColor;
                     c1.a = laserOpacityAverage + laserOpacityVariance * (laserAnimationRandomizer.Next(0, 100) / 100f);
                     c2.a = laserOpacityFadeMin;
-                    line[i].SetColors(c1, c2);
+                    line[i].startColor = c1;
+                    line[i].endColor = c2;
                     float tempWidth = width * laserWidthTimeFunction(thicknessWatch.ElapsedMilliseconds, laserAnimationRandomizer.Next(0, 100));
-                    line[i].SetWidth(tempWidth, tempWidth);
+                    line[i].startWidth = tempWidth;
+                    line[i].endWidth = tempWidth;
                 }
             }
         }
