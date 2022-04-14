@@ -23,8 +23,7 @@ namespace LiDAR
         }
 
         /// <summary>
-        /// Gets the pointcloud from the current instance. Points from all LiDAR parts are 
-        /// combined into one cloud.
+        /// Gets the pointcloud from the current instance.
         /// </summary>
         public IList<double> InstanceGetCloud(Part part)
         {
