@@ -67,25 +67,30 @@
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.IMGUIModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.InputLegacyModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.PhysicsModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.PhysicsModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>..\..\..\KOS-1\Resources\UnityEngine.TextRenderingModule.dll</HintPath>
+      <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>..\..\..\KSP_x64_Data\Managed\UnityEngine.UI.dll</HintPath>

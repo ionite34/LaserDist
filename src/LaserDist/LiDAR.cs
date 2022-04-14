@@ -68,30 +68,6 @@ namespace LiDAR
         /// </summary>
         private RaycastHit bestLateUpdateHit = new RaycastHit();
 
-        /// <summary>
-        /// Track the number of Updates() there's been since having gotten a REAL hit on the
-        /// object that we are currently CLAIMING is the closest hit.  Only if there's been
-        /// several updates of "faking" the hit will we really change the hit to something else.
-        /// This is needed to workaround the fact that Physics.Raycast only seems to occasionally
-        /// hit the object and sometimes passes through it.
-        /// </summary>
-        private int updateForcedResultAge = 0;
-
-        /// <summary>
-        /// Has there been at least one FixedUpdate() within the most recent Update() in which a "real" hit
-        /// has been registered?  
-        /// </summary>
-        private bool resetHitThisUpdate = false;
-
-        /// <summary>
-        /// When physics raycast fails to find a hit on the current best hit object, don't report it as a
-        /// failure unless it happens for this number of Update()'s in a row.  Physics.Raycast is really
-        /// buggy in KSP and will intermittently fail to find hits that are clearly right there:
-        /// </summary>
-        private static int consecutiveForcedResultsAllowed = 2;
-
-        private bool doStressTest = false; // There's a debug test I left in the code that this enables.
-
         private bool isDrawing = false;
         private bool isOnMap = false;
         private bool isInEditor = false;
@@ -186,15 +162,6 @@ namespace LiDAR
         [KSPField(isPersistant = true, guiName = "Bend Y", guiActive = false, guiActiveEditor = false, guiUnits = "deg", guiFormat = "N2")]
         [UI_FloatRange(minValue = -15, maxValue = 15, stepIncrement = 0.001f)]
         public float BendY = 0.0f;
-
-        /// <summary>
-        /// How greedy is this mod at using the CPU to come up with an answer every tick?  If the value is too large,
-        /// then the mod will bog down KSP's animation rate.  If the value is too small, then the mod will take a longer
-        /// time to retun an answer and it might take more than one Unity Update to get the answer.
-        /// </summary>
-        [KSPField(isPersistant = true, guiName = "CPU hog", guiActive = true, guiActiveEditor = true, guiUnits = "%"),
-         UI_FloatRange(minValue = 1f, maxValue = 20f, stepIncrement = 1f)]
-        public float CPUGreedyPercent;
 
         [KSPEvent(guiName = "Zero Bend", guiActive = false, guiActiveEditor = false)]
         public void ZeroBend()
@@ -410,9 +377,13 @@ namespace LiDAR
                 isOnMap = MapView.MapIsEnabled;
                 ChooseLayerBasedOnScene(i);
 
+                Shader vecShader = Shader.Find("Particles/Alpha Blended"); // for when KSP version is < 1.8
+                if (vecShader == null)
+                    vecShader = Shader.Find("Legacy Shaders/Particles/Alpha Blended"); // for when KSP version is >= 1.8
+
                 line[i] = lineObj[i].AddComponent<LineRenderer>();
 
-                line[i].material = new Material(Shader.Find("Particles/Additive"));
+                line[i].material = new Material(vecShader);
                 Color c1 = laserColor;
                 Color c2 = laserColor;
                 line[i].startColor = c1;
