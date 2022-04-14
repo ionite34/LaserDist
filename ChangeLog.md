@@ -1,6 +1,26 @@
 Changes per version for LaserDist (in reverse order)
 ======================================================
 
+V1.4.0 Added to inventory system
+--------------------------------
+
+Support for putting LaserDist parts inside the new KSP inventory system.
+
+The KSP 1.11.x updates added an EVA inventory system for parts and they
+require parts have a new "ModuleCargoPart" section added to its
+Part.cfg files to use it.
+
+This release also works on the previous KSP version, KSP 1.10.x too, but it
+may cause a startup complaint (which it is safe to ignore) in the logs on
+KSP 1.10.x when it sees the new "ModuleCargoPart" section in the config files.
+
+v1.3.0 Just version updates
+---------------------------
+
+Between v0.9.2 and now, all changes have merely been for KSP version
+updates that altered parts of the API and required LaserDist to adjust
+to the new API alls.
+
 v0.9.2  Just Small Visual Bug Fixes
 -----------------------------------
 
