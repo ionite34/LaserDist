@@ -370,12 +370,12 @@ namespace LiDAR
         {
             for (int i = 0; i < beams.Length; ++i)
             {
-                string name = "LiDAR beam" + i;
-                lineObj[i] = new GameObject(name);
+                var gameObj = new GameObject($"LiDAR beam {i}");
+                lineObj[i] = gameObj;
                 isOnMap = MapView.MapIsEnabled;
-                ChooseLayerBasedOnScene(i);
+                ChooseLayerBasedOnScene(gameObj);
 
-                Shader vecShader = Shader.Find("Particles/Alpha Blended"); // for when KSP version is < 1.8
+                var vecShader = Shader.Find("Particles/Alpha Blended"); // for when KSP version is < 1.8
                 if (vecShader == null)
                     vecShader = Shader.Find("Legacy Shaders/Particles/Alpha Blended"); // for when KSP version is >= 1.8
 
@@ -401,13 +401,13 @@ namespace LiDAR
             }
         }
 
-        private void ChooseLayerBasedOnScene(int i)
+        private void ChooseLayerBasedOnScene(GameObject obj)
         {
             isOnMap = MapView.MapIsEnabled;
             isInEditor = HighLogic.LoadedSceneIsEditor;
             Int32 newMask; // holding in a local var temporarily for debug-ability, because Unity overrides the value
                            // if it doesn't like it when you set LineObj.layer directly, making it hard to debug
-                           // what's really going on becuase there's no variable value to look at which hasn't been altered.
+                           // what's really going on because there's no variable value to look at which hasn't been altered.
             if (isInEditor)
             {
                 newMask = laserEditorDrawLayer;
@@ -423,7 +423,7 @@ namespace LiDAR
             {
                 newMask = laserFlightDrawLayer;
             }
-            lineObj[i].layer = newMask;
+            obj.layer = newMask;
         }
 
         /// <summary>
