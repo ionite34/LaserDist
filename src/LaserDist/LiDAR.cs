@@ -621,11 +621,11 @@ namespace LiDAR
                 // DebugMsg(String.Format("MapOrigin = {0} {1} {2}", mapOrigin.x, mapOrigin.y, mapOrigin.z));
             }
 
-            for (int i = 0; i < beams.Length; ++i)
+            for (var i = 0; i < beams.Length; ++i)
             {
                 UpdatePointing(i);
 
-                RaycastHit thisLateUpdateBestHit = new RaycastHit();
+                var thisLateUpdateBestHit = new RaycastHit();
 
                 if (hasPower && Activated && origin != null && beamsPointing[i] != null && CurrentTick == 0)
                 {
