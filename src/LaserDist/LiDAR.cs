@@ -379,14 +379,20 @@ namespace LiDAR
                 if (vecShader == null)
                     vecShader = Shader.Find("Legacy Shaders/Particles/Alpha Blended"); // for when KSP version is >= 1.8
 
-                line[i] = lineObj[i].AddComponent<LineRenderer>();
+                var currentLine = lineObj[i];
+                // Skip if the line object is null
+                if (currentLine == null)
+                    continue;
+                
+                var currentRenderer = currentLine.AddComponent<LineRenderer>();
+                line[i] = currentRenderer;
 
-                line[i].material = new Material(vecShader);
-                Color c1 = laserColor;
-                Color c2 = laserColor;
-                line[i].startColor = c1;
-                line[i].endColor = c2;
-                line[i].enabled = true;
+                currentRenderer.material = new Material(vecShader);
+                var c1 = laserColor;
+                var c2 = laserColor;
+                currentRenderer.startColor = c1;
+                currentRenderer.endColor = c2;
+                currentRenderer.enabled = true;
 
                 laserAnimationRandomizer = new System.Random();
                 bestLateUpdateHit.distance = -1f;
