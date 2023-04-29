@@ -597,17 +597,15 @@ namespace LiDAR
             if (CurrentTick >= (int) TickSpacing)
                 CurrentTick = 0;
 
-            origin = this.part.transform.TransformPoint(relLaserOrigin);
-            rawPointing = this.part.transform.rotation * Vector3d.up;
+            var partTransform = part.transform;
+            origin = partTransform.TransformPoint(relLaserOrigin);
+            rawPointing = partTransform.rotation * Vector3d.up;
 
             mapOrigin = ScaledSpace.LocalToScaledSpace(origin);
 
-            /// Get transform
-            /// ***********************************
-            var currentBody = this.part.vessel.mainBody;
-
+            // Get transform
+            var currentBody = part.vessel.mainBody;
             var pos = currentBody.position;
-
             var rot = rotInv(currentBody);
             
             // Add sensor origin
