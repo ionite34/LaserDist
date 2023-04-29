@@ -90,7 +90,7 @@ namespace LiDAR
         private System.Diagnostics.Stopwatch thicknessWatch;
 
 
-        private readonly GameObject[] lineObj = new GameObject[8];
+        private readonly GameObject?[] lineObj = new GameObject[8];
         private readonly LineRenderer?[] line = new LineRenderer[8];
         private GameObject? debuglineObj;
         private LineRenderer? debugline;
@@ -434,15 +434,13 @@ namespace LiDAR
         {
             for (var i = 0; i < line.Length; ++i)
             {
-                if (line[i] != null)
+                var renderer = line[i];
+                if (renderer != null)
                 {
-                    line[i].enabled = false;
+                    renderer.enabled = false;
                     line[i] = null;
                 }
-                if (lineObj[i] != null)
-                {
-                    lineObj[i] = null;
-                }
+                lineObj[i] = null;
             }
         }
 
