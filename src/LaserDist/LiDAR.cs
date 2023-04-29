@@ -199,7 +199,7 @@ namespace LiDAR
             BaseField field;
 
             DebugMsg("LiDAR is trying to config GUI panel fields from settings:");
-            DebugMsg(String.Format("Part name = {0}, MaxBendX = {1}, MaxBendY = {2}", part.name, MaxBendX, MaxBendY));
+            DebugMsg($"Part name = {part.name}, MaxBendX = {MaxBendX}, MaxBendY = {MaxBendY}");
 
             field = Fields["BendX"];
             ((UI_FloatRange)field.uiControlEditor).minValue = -MaxBendX;
@@ -594,7 +594,7 @@ namespace LiDAR
         {
             CurrentTick++;
 
-            if (CurrentTick >= (int)(TickSpacing))
+            if (CurrentTick >= (int) TickSpacing)
                 CurrentTick = 0;
 
             origin = this.part.transform.TransformPoint(relLaserOrigin);
@@ -609,21 +609,16 @@ namespace LiDAR
             var pos = currentBody.position;
 
             var rot = rotInv(currentBody);
-
-
-
-            /// ***********************************
-
-
-            /// Add sensor origin
+            
+            // Add sensor origin
             if (CurrentTick == 0 && cloudData.Count == 0)
             {
                 var worldOrigin = rot * (origin - pos);
                 cloudData.Add(worldOrigin.x);
                 cloudData.Add(worldOrigin.y);
                 cloudData.Add(worldOrigin.z);
-                //DebugMsg(String.Format("Origin = {0} {1} {2}", origin.x, origin.y, origin.z));
-                ///DebugMsg(String.Format("MapOrigin = {0} {1} {2}", mapOrigin.x, mapOrigin.y, mapOrigin.z));
+                // DebugMsg(String.Format("Origin = {0} {1} {2}", origin.x, origin.y, origin.z));
+                // DebugMsg(String.Format("MapOrigin = {0} {1} {2}", mapOrigin.x, mapOrigin.y, mapOrigin.z));
             }
 
             for (int i = 0; i < beams.Length; ++i)
