@@ -390,11 +390,8 @@ namespace LiDAR
 
                 laserAnimationRandomizer = new System.Random();
                 bestLateUpdateHit.distance = -1f;
-
-                if (thicknessWatch != null)
-                    thicknessWatch.Stop();
-                thicknessWatch = new System.Diagnostics.Stopwatch();
-                thicknessWatch.Start();
+                
+                thicknessWatch.Restart();
             }
         }
 
