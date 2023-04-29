@@ -66,7 +66,7 @@ namespace LiDAR
         /// <summary>
         /// Remember the object that had been hit by bestUnityRayCastDist
         /// </summary>
-        private RaycastHit bestLateUpdateHit = new RaycastHit();
+        private RaycastHit bestLateUpdateHit;
 
         private bool isDrawing = false;
         private bool isOnMap = false;
@@ -81,21 +81,19 @@ namespace LiDAR
         private float laserOpacityAverage = 0.45f;
         private float laserOpacityVariance = 0.20f;
         private float laserOpacityFadeMin = 0.1f; // min opacity when at max distance.
-        private System.Random laserAnimationRandomizer = null;
+        private System.Random? laserAnimationRandomizer = null;
 
         // This varies the "wowowow" laser thickness animation:
         private delegate float ThicknessTimeFunction(long millisec, int rand100);
-        private ThicknessTimeFunction laserWidthTimeFunction = delegate (long ms, int rand100)
-        {
-            return 0.3f + 0.2f * (Mathf.Sin(ms / 200) + (rand100 / 100f) - 0.5f);
-        };
+        private ThicknessTimeFunction laserWidthTimeFunction =
+            (ms, rand100) => 0.3f + 0.2f * (Mathf.Sin(ms / 200f) + (rand100 / 100f) - 0.5f);
         private System.Diagnostics.Stopwatch thicknessWatch;
 
 
-        private GameObject[] lineObj = new GameObject[8];
-        private LineRenderer[] line = new LineRenderer[8];
-        private GameObject debuglineObj = null;
-        private LineRenderer debugline = null;
+        private readonly GameObject[] lineObj = new GameObject[8];
+        private readonly LineRenderer?[] line = new LineRenderer[8];
+        private GameObject? debuglineObj;
+        private LineRenderer? debugline;
         private Int32 mask;
         private Int32 laserFlightDrawLayer;
         private Int32 laserMapDrawLayer;
@@ -104,7 +102,7 @@ namespace LiDAR
         // Sensor origin (3), beam direction (3), distance to impact (1), number of beams (8) 
         private static int frameLength = 3 + (3 + 1) * 8;
 
-        RaycastHit[] beams = new RaycastHit[8];
+        readonly RaycastHit[] beams = new RaycastHit[8];
 
         /// Max number of values stored before cloud data is reset
         int MaxPoints = frameLength * 20;
@@ -264,7 +262,7 @@ namespace LiDAR
             if (debugShowAllMaskNames)
             {
                 for (int i = 0; i < 32; i++)
-                    System.Console.WriteLine("A layer called \"" + LayerMask.LayerToName(i) + "\" exists at bit position " + i);
+                    Console.WriteLine("A layer called \"" + LayerMask.LayerToName(i) + "\" exists at bit position " + i);
             }
             // WARNING TO ANY FUTURE MAINTAINERS ABOUT THE FOLLOWING LAYERMASK SETTING:
             //
@@ -431,7 +429,7 @@ namespace LiDAR
         /// </summary>
         private void stopDrawing()
         {
-            for (int i = 0; i < line.Length; ++i)
+            for (var i = 0; i < line.Length; ++i)
             {
                 if (line[i] != null)
                 {
