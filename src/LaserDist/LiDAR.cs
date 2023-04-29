@@ -627,8 +627,8 @@ namespace LiDAR
 
                 if (hasPower && Activated && origin != null && beamsPointing[i] != null && CurrentTick == 0)
                 {
-                    RaycastHit[] hits = null;
-                    hits = Physics.RaycastAll(origin, beamsPointing[i], MaxDistance, mask);
+                    var hits = new RaycastHit[] { };
+                    Physics.RaycastNonAlloc(origin, beamsPointing[i], hits, MaxDistance, mask);
 
                     if (hits.Length > 0)
                     {
