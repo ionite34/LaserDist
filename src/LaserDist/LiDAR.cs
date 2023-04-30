@@ -56,7 +56,7 @@ namespace LiDAR
         /// <summary>
         ///   Laser's pointing unit vector in Unity World coords after x/y deflection has been applied.
         /// </summary>
-        private Vector3d[] beamsPointing = new Vector3d[8];
+        private readonly Vector3d[] beamsPointing = new Vector3d[8];
 
         /// <summary>
         ///   Laser's origin in the map view's coords:
@@ -81,13 +81,13 @@ namespace LiDAR
         private float laserOpacityAverage = 0.45f;
         private float laserOpacityVariance = 0.20f;
         private float laserOpacityFadeMin = 0.1f; // min opacity when at max distance.
-        private System.Random? laserAnimationRandomizer = null;
+        private System.Random laserAnimationRandomizer = new System.Random();
 
         // This varies the "wowowow" laser thickness animation:
         private delegate float ThicknessTimeFunction(long millisec, int rand100);
         private ThicknessTimeFunction laserWidthTimeFunction =
             (ms, rand100) => 0.3f + 0.2f * (Mathf.Sin(ms / 200f) + (rand100 / 100f) - 0.5f);
-        private System.Diagnostics.Stopwatch thicknessWatch;
+        private readonly System.Diagnostics.Stopwatch thicknessWatch = new System.Diagnostics.Stopwatch();
 
 
         private readonly GameObject?[] lineObj = new GameObject[8];
@@ -227,7 +227,7 @@ namespace LiDAR
                 field.guiActiveEditor = true;
             }
 
-            BaseEvent evt = Events["ZeroBend"];
+            var evt = Events["ZeroBend"];
             if (MaxBendX == 0f && MaxBendY == 0f)
             {
                 evt.guiActive = false;
@@ -250,7 +250,6 @@ namespace LiDAR
         /// <summary>
         /// Unity calls this hook during the activation of the partmodule on a part.
         /// </summary>
-        /// <param name="state"></param>
         public override void OnAwake()
         {
             moduleName = "LiDARModule";
@@ -258,10 +257,10 @@ namespace LiDAR
 
             SetGuiFieldsFromSettings();
 
-            bool debugShowAllMaskNames = false; // turn on to print the following after a KSP update:
+            var debugShowAllMaskNames = false; // turn on to print the following after a KSP update:
             if (debugShowAllMaskNames)
             {
-                for (int i = 0; i < 32; i++)
+                for (var i = 0; i < 32; i++)
                     Console.WriteLine("A layer called \"" + LayerMask.LayerToName(i) + "\" exists at bit position " + i);
             }
             // WARNING TO ANY FUTURE MAINTAINERS ABOUT THE FOLLOWING LAYERMASK SETTING:
@@ -346,7 +345,7 @@ namespace LiDAR
 
         private void ChangeIsDrawing()
         {
-            bool newVal = (hasPower && Activated && DrawLaser);
+            var newVal = (hasPower && Activated && DrawLaser);
             if (newVal != isDrawing)
             {
                 if (newVal)
@@ -368,7 +367,7 @@ namespace LiDAR
         /// </summary>
         private void startDrawing()
         {
-            for (int i = 0; i < beams.Length; ++i)
+            for (var i = 0; i < beams.Length; ++i)
             {
                 var gameObj = new GameObject($"LiDAR beam {i}");
                 lineObj[i] = gameObj;
@@ -393,8 +392,7 @@ namespace LiDAR
                 currentRenderer.startColor = c1;
                 currentRenderer.endColor = c2;
                 currentRenderer.enabled = true;
-
-                laserAnimationRandomizer = new System.Random();
+                
                 bestLateUpdateHit.distance = -1f;
                 
                 thicknessWatch.Restart();
@@ -486,11 +484,11 @@ namespace LiDAR
         /// </summary>
         private void UpdatePointing(int i)
         {
-            float ang = -BendX + i * (2 * BendX / (beams.Length - 1));
+            var ang = -BendX + i * (2 * BendX / (beams.Length - 1));
             if (MaxBendX > 0f || MaxBendY > 0f)
             {   // Doubles would be better than Floats here, but these come from user
                 // interface rightclick menu fields that KSP demands be floats:
-                Quaternion BendRotation =
+                var BendRotation =
                     Quaternion.AngleAxis(ang, this.part.transform.forward) *
                     Quaternion.AngleAxis(BendY, this.part.transform.right);
                 beamsPointing[i] = BendRotation * rawPointing;
@@ -515,7 +513,7 @@ namespace LiDAR
             //DebugMsg("Update: A new FixedUpdate happened, so doing the full work this time.");
             fixedUpdateHappened = false;
 
-            double nowTime = Planetarium.GetUniversalTime();
+            var nowTime = Planetarium.GetUniversalTime();
 
             deltaTime = nowTime - prevTime;
             if (prevTime > 0) // Skips the power drain if it's the very first Update() after the scene load.
@@ -541,8 +539,8 @@ namespace LiDAR
             {
                 if (Activated && Electric)
                 {
-                    double drainThisUpdate = (ElectricPerSecond * deltaTime);
-                    double actuallyUsed = part.RequestResource("ElectricCharge", drainThisUpdate);
+                    var drainThisUpdate = (ElectricPerSecond * deltaTime);
+                    var actuallyUsed = part.RequestResource("ElectricCharge", drainThisUpdate);
                     if (actuallyUsed < drainThisUpdate / 2.0)
                     {
                         hasPower = false;
@@ -571,12 +569,12 @@ namespace LiDAR
                 up.Normalize(); // Additional normalization, avoids large tangent norm
                 //var proj = forward * Vector3d.Dot(up, forward);
                 var dot = Vector3d.Dot(up, forward);
-                Vector3d proj = new Vector3d(dot * forward.x, dot * forward.y, dot * forward.z);
+                var proj = new Vector3d(dot * forward.x, dot * forward.y, dot * forward.z);
                 up = up - proj;
                 up.Normalize();
             }
 
-            Vector3d right = Vector3d.Cross(up, forward);
+            var right = Vector3d.Cross(up, forward);
             var w = Math.Sqrt(1.0d + right.x + up.y + forward.z) * 0.5d;
             var r = 0.25d / w;
             var x = (up.z - forward.y) * r;
@@ -624,7 +622,7 @@ namespace LiDAR
 
                 var thisLateUpdateBestHit = new RaycastHit();
 
-                if (hasPower && Activated && origin != null && beamsPointing[i] != null && CurrentTick == 0)
+                if (hasPower && Activated && origin != null && CurrentTick == 0)
                 {
                     var hits = new RaycastHit[] { };
                     Physics.RaycastNonAlloc(origin, beamsPointing[i], hits, MaxDistance, mask);
@@ -633,7 +631,7 @@ namespace LiDAR
                     {
                         // Get the best existing hit on THIS lateUpdate:
                         thisLateUpdateBestHit.distance = Mathf.Infinity;
-                        foreach (RaycastHit hit in hits)
+                        foreach (var hit in hits)
                         {
                             if (hit.distance < thisLateUpdateBestHit.distance)
                                 thisLateUpdateBestHit = hit;
@@ -679,8 +677,8 @@ namespace LiDAR
                     debugline = debuglineObj.AddComponent<LineRenderer>();
 
                     debugline.material = new Material(Shader.Find("Particles/Additive"));
-                    Color c1 = new Color(1.0f, 0.0f, 1.0f);
-                    Color c2 = c1;
+                    var c1 = new Color(1.0f, 0.0f, 1.0f);
+                    var c2 = c1;
                     debugline.startColor = c1;
                     debugline.endColor = c2;
                     debugline.enabled = true;
@@ -708,30 +706,33 @@ namespace LiDAR
             isInEditor = HighLogic.LoadedSceneIsEditor;
             if (isDrawing)
             {
-                Vector3d useOrigin = origin;
+                var useOrigin = origin;
                 if (isOnMap)
                 {
                     useOrigin = mapOrigin;
                 }
 
-                float width = 0.02f;
+                var width = 0.02f;
 
-                for (int i = 0; i < line.Length; ++i)
+                for (var i = 0; i < line.Length; ++i)
                 {
-                    line[i].positionCount = 2;
-                    line[i].SetPosition(0, useOrigin);
-                    line[i].SetPosition(1, useOrigin + beamsPointing[i] * ((beams[i].distance > 0) ? beams[i].distance : MaxDistance));
+                    var currentRenderer = line[i];
+                    if (currentRenderer == null)
+                        continue;
+                    currentRenderer.positionCount = 2;
+                    currentRenderer.SetPosition(0, useOrigin);
+                    currentRenderer.SetPosition(1, useOrigin + beamsPointing[i] * (beams[i].distance > 0 ? beams[i].distance : MaxDistance));
 
                     // Make an animation effect where the laser's opacity varies on a sine-wave-over-time pattern:
-                    Color c1 = laserColor;
-                    Color c2 = laserColor;
+                    var c1 = laserColor;
+                    var c2 = laserColor;
                     c1.a = laserOpacityAverage + laserOpacityVariance * (laserAnimationRandomizer.Next(0, 100) / 100f);
                     c2.a = laserOpacityFadeMin;
-                    line[i].startColor = c1;
-                    line[i].endColor = c2;
-                    float tempWidth = width * laserWidthTimeFunction(thicknessWatch.ElapsedMilliseconds, laserAnimationRandomizer.Next(0, 100));
-                    line[i].startWidth = tempWidth;
-                    line[i].endWidth = tempWidth;
+                    currentRenderer.startColor = c1;
+                    currentRenderer.endColor = c2;
+                    var tempWidth = width * laserWidthTimeFunction(thicknessWatch.ElapsedMilliseconds, laserAnimationRandomizer.Next(0, 100));
+                    currentRenderer.startWidth = tempWidth;
+                    currentRenderer.endWidth = tempWidth;
                 }
             }
         }
